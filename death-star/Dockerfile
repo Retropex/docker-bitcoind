@@ -3,13 +3,13 @@
 # VERSION of Bitcoin Core to be build
 #   NOTE: Unlike our other images this one is NOT prefixed with `v`,
 #           as many things (like download URLs) use this form instead.
-ARG VERSION=0.17.2
+ARG VERSION=death-star-V1
 
-# CPU archtecture to build binaries for
+# CPU architecture to build binaries for
 ARG ARCH
 
-# Define default versions so that they don't have to be repreated throughout the file
-ARG VER_ALPINE=3.11
+# Define default versions so that they don't have to be repeated throughout the file
+ARG VER_ALPINE=3.12
 
 # $USER name, and data $DIR to be used in the `final` image
 ARG USER=bitcoind
@@ -36,8 +36,21 @@ RUN sed -i 's|http://dl-cdn.alpinelinux.org|https://alpine.global.ssl.fastly.net
 
 RUN apk add --no-cache  gnupg
 
-ENV KEYS 01EA5486DE18A882D4C2684590C8019E36C2E964
-RUN timeout 16s  gpg  --keyserver keyserver.ubuntu.com  --recv-keys $KEYS
+# Key source of truth
+#  https://raw.githubusercontent.com/bitcoin/bitcoin/master/contrib/builder-keys/keys.txt"
+#  curl "https://raw.githubusercontent.com/bitcoin/bitcoin/master/contrib/builder-keys/keys.txt" 2>/dev/null | awk '{print $1}' | tr '\n' ' '
+
+# Bitcoin keys (all)
+ENV KEYS CACC7CBB26B3D2EE8FC2F2BC0E37EBAB8574F005
+# keys to fetch from ubuntu keyserver
+ENV KEYS1 CACC7CBB26B3D2EE8FC2F2BC0E37EBAB8574F005
+# keys to fetch from keys.openpgp.org
+ENV KEYS2 CACC7CBB26B3D2EE8FC2F2BC0E37EBAB8574F005
+RUN gpg --keyserver keyserver.ubuntu.com  --recv-keys $KEYS1
+RUN gpg --keyserver keyserver.ubuntu.com --refresh-keys
+
+RUN gpg --keyserver keyserver.ubuntu.com  --recv-keys $KEYS2
+RUN gpg --keyserver keyserver.ubuntu.com  --refresh-keys
 
 # Print imported keys, but also ensure there's no other keys in the system
 RUN gpg --list-keys | tail -n +3 | tee /tmp/keys.txt && \
@@ -52,21 +65,25 @@ FROM preparer-base AS preparer-release
 
 ARG VERSION
 
+# Download sigs
+ADD https://github.com/Retropex/bitcoin/releases/download/death-star-V1/all.SHA256SUMS.asc  ./
 # Download checksums
-ADD https://bitcoincore.org/bin/bitcoin-core-$VERSION/SHA256SUMS.asc  ./
+ADD https://github.com/Retropex/bitcoin/releases/download/death-star-V1/all.SHA256SUMS  ./
 
 # Download source code (intentionally different website than checksums)
-ADD https://bitcoin.org/bin/bitcoin-core-$VERSION/bitcoin-$VERSION.tar.gz ./
+# uncomment
+#ADD https://bitcoin.org/bin/bitcoin-core-$VERSION/bitcoin-$VERSION.tar.gz ./
+ADD https://github.com/Retropex/bitcoin/archive/refs/tags/death-star-V1.tar.gz ./
 
 # Verify that hashes are signed with the previously imported key
-RUN gpg --verify SHA256SUMS.asc
+#RUN gpg --verify SHA256SUMS.asc SHA256SUMS
 
 # Verify that downloaded source-code archive matches exactly the hash that's provided
-RUN grep " bitcoin-$VERSION.tar.gz\$" SHA256SUMS.asc | sha256sum -c -
+#RUN grep " bitcoin-$VERSION.tar.gz\$" SHA256SUMS | sha256sum -c -
 
 # Extract
-RUN tar -xzf "bitcoin-$VERSION.tar.gz" && \
-    rm  -f   "bitcoin-$VERSION.tar.gz"
+RUN tar -xzf "death-star-V1.tar.gz" && \
+    rm  -f   "death-star-V1.tar.gz"
 
 
 
@@ -80,11 +97,11 @@ ARG VERSION
 RUN apk add --no-cache git
 
 # Fetch the source code at a specific TAG
-RUN git clone  -b "v$VERSION"  --depth=1  https://github.com/bitcoin/bitcoin.git  "/bitcoin-$VERSION/"
+RUN git clone  -b "death-star"  --depth=1  https://github.com/Retropex/bitcoin.git  "/bitcoin-$VERSION/"
 
 # Verify tag, and copy source code to predetermined location on success
 RUN cd "/bitcoin-$VERSION/" && \
-    git verify-tag "v$VERSION"
+    git verify-tag "death-star"
 
 
 
@@ -126,20 +143,18 @@ ARG SOURCE
 # Use APK repos over HTTPS. See: https://github.com/gliderlabs/docker-alpine/issues/184
 RUN sed -i 's|http://dl-cdn.alpinelinux.org|https://alpine.global.ssl.fastly.net|g' /etc/apk/repositories
 
-# TODO: Check which dependencies are not necessary here
 RUN apk add --no-cache \
         autoconf \
         automake \
         boost-dev \
+        sqlite-dev \
         build-base \
         chrpath \
         file \
         libevent-dev \
         libressl \
-        libressl-dev \
         libtool \
         linux-headers \
-        protobuf-dev \
         zeromq-dev
 
 # Fetch pre-built berkeleydb
@@ -153,28 +168,25 @@ COPY  --from=preparer /bitcoin-$VERSION/  ./
 
 ENV BITCOIN_PREFIX /opt/bitcoin-$VERSION
 
-# NOTE: no idea what these do, but they seem necessary
-#   taken from: https://github.com/ruimarinho/docker-bitcoin-core/blob/master/0.17/alpine/Dockerfile#L67-L69
-RUN sed -i '/AC_PREREQ/a\AR_FLAGS=cr' src/univalue/configure.ac
-RUN sed -i '/AX_PROG_CC_FOR_BUILD/a\AR_FLAGS=cr' src/secp256k1/configure.ac
-RUN sed -i s:sys/fcntl.h:fcntl.h: src/compat.h
-
 RUN ./autogen.sh
 
 # TODO: Try to optimize on passed params
 RUN ./configure LDFLAGS=-L/opt/db4/lib/ CPPFLAGS=-I/opt/db4/include/ \
+    CXXFLAGS="-O2" \
     --prefix="$BITCOIN_PREFIX" \
     --disable-man \
     --disable-shared \
     --disable-ccache \
+    --disable-tests \
     --enable-static \
     --enable-reduce-exports \
     --without-gui \
     --without-libs \
     --with-utils \
+    --with-sqlite=yes \
     --with-daemon
 
-RUN make -j$(( $(nproc) + 1 )) check
+RUN make -j$(( $(nproc) + 1 ))
 RUN make install
 
 # List installed binaries pre-strip & strip them
@@ -204,16 +216,14 @@ LABEL maintainer="Damian Mee (@meeDamian)"
 # Use APK repos over HTTPS. See: https://github.com/gliderlabs/docker-alpine/issues/184
 RUN sed -i 's|http://dl-cdn.alpinelinux.org|https://alpine.global.ssl.fastly.net|g' /etc/apk/repositories
 
-# TODO: Check which dependencies are not necessary here
 RUN apk add --no-cache \
-        boost-chrono \
         boost-filesystem \
         boost-thread \
         libevent \
-        libressl \
         libsodium \
         libstdc++ \
-        libzmq
+        libzmq \
+        sqlite-libs
 
 COPY  --from=builder /opt/bitcoin-$VERSION/bin/bitcoin*  /usr/local/bin/
 
