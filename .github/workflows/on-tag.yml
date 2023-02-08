@@ -19,7 +19,7 @@ on:
 jobs:
   build:
     name: Build bitcoind
-    runs-on: ubuntu-18.04
+    runs-on: self-hosted
 
     strategy:
       matrix:
@@ -44,11 +44,6 @@ jobs:
 
           VERSION="$(echo "$GITHUB_REF" | sed -E "s|$TAG_FMT|\2|")"
           DIR="$(echo "${VERSION#v}" | cut -d. -f-2)"
-
-          if ! grep -q "^ARG VERSION=${VERSION#v}$" "$DIR/Dockerfile"; then
-            echo "ERR: $DIR/Dockerfile must contain VERSION=$VERSION"
-            exit 1
-          fi
 
           echo ::set-env name=DIR::"$DIR"
 
@@ -130,7 +125,7 @@ jobs:
   deploy:
     name: Deploy to Docker Hub & Github Releases.  Only after successful build.
 
-    runs-on: ubuntu-18.04
+    runs-on: self-hosted
     needs: build
 
     env:
@@ -139,7 +134,7 @@ jobs:
     steps:
       - name: Setup environment
         run: |
-          echo ::set-env name=SLUG::"$(echo ${GITHUB_REPOSITORY,,} | sed 's/docker-//')"
+          echo ::set-env name=SLUG::"retropexx/bitcoind"
           echo ::set-env name=VERSION::"$(echo "$GITHUB_REF" | sed -E "s|$TAG_FMT|\2|")"
           echo ::set-env name=BUILD::"$(echo "$GITHUB_REF" | sed -E "s|$TAG_FMT|\4|")"
 
@@ -167,7 +162,7 @@ jobs:
 
       - name: Login to Docker Hub
         env:
-          DOCKER_USER: meedamian
+          DOCKER_USER: retropexx
         run: |
           echo "Logging in as ${DOCKER_USER}…"
           echo "${{ secrets.DOCKER_TOKEN }}" | docker login -u="$DOCKER_USER" --password-stdin
@@ -201,7 +196,7 @@ jobs:
       - name: Upload images to Github Release
         uses: meeDamian/github-release@2.0
         with:
-          token: ${{ secrets.GITHUB_TOKEN_NOEXPIRE }}
+          token: ${{ secrets.REPO_APIKEY }}
           name: ${{ env.VERSION }}
           body: |
             This release packages `bitcoind` to be on par with https://github.com/bitcoin/bitcoin/releases/tag/${{ env.VERSION }}

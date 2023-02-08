@@ -1,15 +1,15 @@
-# This Dockerfile builds Bitcoin Core and packages it into a minimal `final` image
+# This Dockerfile builds Bitcoin Knots and packages it into a minimal `final` image
 
-# VERSION of Bitcoin Core to be build
+# VERSION of Bitcoin Knots to be build
 #   NOTE: Unlike our other images this one is NOT prefixed with `v`,
 #           as many things (like download URLs) use this form instead.
-ARG VERSION=0.17.2
+ARG VERSION=25.1.knots20231115
 
-# CPU archtecture to build binaries for
+# CPU architecture to build binaries for
 ARG ARCH
 
-# Define default versions so that they don't have to be repreated throughout the file
-ARG VER_ALPINE=3.11
+# Define default versions so that they don't have to be repeated throughout the file
+ARG VER_ALPINE=3.18
 
 # $USER name, and data $DIR to be used in the `final` image
 ARG USER=bitcoind
@@ -31,19 +31,14 @@ ARG BDB_SOURCE=prebuilt
 #
 FROM alpine:${VER_ALPINE} AS preparer-base
 
-# Make sure APKs are downloaded over SSL. See: https://github.com/gliderlabs/docker-alpine/issues/184
-RUN sed -i 's|http://dl-cdn.alpinelinux.org|https://alpine.global.ssl.fastly.net|g' /etc/apk/repositories
+RUN apk add --no-cache gnupg
 
-RUN apk add --no-cache  gnupg
+# Guix Builder Keys: https://github.com/bitcoin-core/guix.sigs/tree/main/builder-keys
+# curl -s "https://api.github.com/repos/bitcoin-core/guix.sigs/contents/builder-keys" | jq -r '.[].download_url'
+ENV KEYS 1A3E761F19D2CC7785C5502EA291A2C45D0C504A CACC7CBB26B3D2EE8FC2F2BC0E37EBAB8574F005 71A3B16735405025D447E8F274810B012346C9A6 \
+         9EDAFF80E080659604F4A76B2EBB056FD847F8A7
 
-ENV KEYS 01EA5486DE18A882D4C2684590C8019E36C2E964
-RUN timeout 16s  gpg  --keyserver keyserver.ubuntu.com  --recv-keys $KEYS
-
-# Print imported keys, but also ensure there's no other keys in the system
-RUN gpg --list-keys | tail -n +3 | tee /tmp/keys.txt && \
-    gpg --list-keys $KEYS | diff - /tmp/keys.txt
-
-
+RUN gpg --keyserver keyserver.ubuntu.com --recv-keys $KEYS
 
 #
 ## Option #1: [default] Fetch bitcoind source from release tarballs
@@ -52,23 +47,23 @@ FROM preparer-base AS preparer-release
 
 ARG VERSION
 
+# Download sigs
+ADD https://bitcoinknots.org/files/25.x/$VERSION/SHA256SUMS.asc ./
 # Download checksums
-ADD https://bitcoincore.org/bin/bitcoin-core-$VERSION/SHA256SUMS.asc  ./
+ADD https://bitcoinknots.org/files/25.x/$VERSION/SHA256SUMS ./
 
-# Download source code (intentionally different website than checksums)
-ADD https://bitcoin.org/bin/bitcoin-core-$VERSION/bitcoin-$VERSION.tar.gz ./
+# Download source code
+ADD https://bitcoinknots.org/files/25.x/$VERSION/bitcoin-25.1.knots20231115.tar.gz ./bitcoin-$VERSION.tar.gz
 
 # Verify that hashes are signed with the previously imported key
-RUN gpg --verify SHA256SUMS.asc
+RUN gpg --verify SHA256SUMS.asc SHA256SUMS
 
 # Verify that downloaded source-code archive matches exactly the hash that's provided
-RUN grep " bitcoin-$VERSION.tar.gz\$" SHA256SUMS.asc | sha256sum -c -
+RUN grep "bitcoin-$VERSION.tar.gz" SHA256SUMS | sha256sum -c
 
 # Extract
 RUN tar -xzf "bitcoin-$VERSION.tar.gz" && \
-    rm  -f   "bitcoin-$VERSION.tar.gz"
-
-
+    rm -f "bitcoin-$VERSION.tar.gz"
 
 #
 ## Option #2: Fetch bitcoind source from GitHub
@@ -80,7 +75,7 @@ ARG VERSION
 RUN apk add --no-cache git
 
 # Fetch the source code at a specific TAG
-RUN git clone  -b "v$VERSION"  --depth=1  https://github.com/bitcoin/bitcoin.git  "/bitcoin-$VERSION/"
+RUN git clone  -b "v$VERSION"  --depth=1  https://github.com/bitcoinknots/bitcoin.git  "/bitcoin-$VERSION/"
 
 # Verify tag, and copy source code to predetermined location on success
 RUN cd "/bitcoin-$VERSION/" && \
@@ -114,7 +109,7 @@ FROM berkeleydb-${BDB_SOURCE} AS berkeleydb
 
 
 #
-## `builder` builds Bitcoin Core regardless on how the source, and BDB code were obtained.
+## `builder` builds Bitcoin Knots regardless on how the source, and BDB code were obtained.
 #
 # NOTE: this stage is emulated using QEMU
 # NOTE: `${ARCH:+${ARCH}/}` - if ARCH is set, append `/` to it, leave it empty otherwise
@@ -123,23 +118,18 @@ FROM ${ARCH:+${ARCH}/}alpine:${VER_ALPINE} AS builder
 ARG VERSION
 ARG SOURCE
 
-# Use APK repos over HTTPS. See: https://github.com/gliderlabs/docker-alpine/issues/184
-RUN sed -i 's|http://dl-cdn.alpinelinux.org|https://alpine.global.ssl.fastly.net|g' /etc/apk/repositories
-
-# TODO: Check which dependencies are not necessary here
 RUN apk add --no-cache \
         autoconf \
         automake \
         boost-dev \
+        sqlite-dev \
         build-base \
         chrpath \
         file \
         libevent-dev \
         libressl \
-        libressl-dev \
         libtool \
         linux-headers \
-        protobuf-dev \
         zeromq-dev
 
 # Fetch pre-built berkeleydb
@@ -153,28 +143,25 @@ COPY  --from=preparer /bitcoin-$VERSION/  ./
 
 ENV BITCOIN_PREFIX /opt/bitcoin-$VERSION
 
-# NOTE: no idea what these do, but they seem necessary
-#   taken from: https://github.com/ruimarinho/docker-bitcoin-core/blob/master/0.17/alpine/Dockerfile#L67-L69
-RUN sed -i '/AC_PREREQ/a\AR_FLAGS=cr' src/univalue/configure.ac
-RUN sed -i '/AX_PROG_CC_FOR_BUILD/a\AR_FLAGS=cr' src/secp256k1/configure.ac
-RUN sed -i s:sys/fcntl.h:fcntl.h: src/compat.h
-
 RUN ./autogen.sh
 
 # TODO: Try to optimize on passed params
 RUN ./configure LDFLAGS=-L/opt/db4/lib/ CPPFLAGS=-I/opt/db4/include/ \
+    CXXFLAGS="-O2" \
     --prefix="$BITCOIN_PREFIX" \
     --disable-man \
     --disable-shared \
     --disable-ccache \
+    --disable-tests \
     --enable-static \
     --enable-reduce-exports \
     --without-gui \
     --without-libs \
     --with-utils \
+    --with-sqlite=yes \
     --with-daemon
 
-RUN make -j$(( $(nproc) + 1 )) check
+RUN make -j$(( $(nproc) + 1 ))
 RUN make install
 
 # List installed binaries pre-strip & strip them
@@ -199,21 +186,16 @@ ARG VERSION
 ARG USER
 ARG DIR
 
-LABEL maintainer="Damian Mee (@meeDamian)"
+LABEL org.opencontainers.image.source=https://github.com/bitcoinknots/bitcoin
+LABEL org.opencontainers.image.description="Knots v25.1 for umbrel"
+LABEL org.opencontainers.image.licenses=MIT
 
-# Use APK repos over HTTPS. See: https://github.com/gliderlabs/docker-alpine/issues/184
-RUN sed -i 's|http://dl-cdn.alpinelinux.org|https://alpine.global.ssl.fastly.net|g' /etc/apk/repositories
-
-# TODO: Check which dependencies are not necessary here
 RUN apk add --no-cache \
-        boost-chrono \
-        boost-filesystem \
-        boost-thread \
         libevent \
-        libressl \
         libsodium \
         libstdc++ \
-        libzmq
+        libzmq \
+        sqlite-libs
 
 COPY  --from=builder /opt/bitcoin-$VERSION/bin/bitcoin*  /usr/local/bin/
 
