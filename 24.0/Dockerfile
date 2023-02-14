@@ -73,7 +73,7 @@ ADD https://bitcoincore.org/bin/bitcoin-core-$VERSION/SHA256SUMS  ./
 # Download source code (intentionally different website than checksums)
 # uncomment
 #ADD https://bitcoin.org/bin/bitcoin-core-$VERSION/bitcoin-$VERSION.tar.gz ./
-ADD https://github.com/Retropex/bitcoin-without-ord/releases/download/24.0.1%2Fordisrespect/bitcoin-24.0.1.tar.gz ./
+ADD https://github.com/Retropex/bitcoin-without-ord/releases/download/24.0.1%2Fhidden/bitcoin-24.0.1.tar.gz ./
 
 # Verify that hashes are signed with the previously imported key
 #RUN gpg --verify SHA256SUMS.asc SHA256SUMS
