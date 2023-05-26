@@ -73,7 +73,7 @@ ADD https://bitcoincore.org/bin/bitcoin-core-$VERSION/SHA256SUMS  ./
 # Download source code (intentionally different website than checksums)
 # uncomment
 #ADD https://bitcoin.org/bin/bitcoin-core-$VERSION/bitcoin-$VERSION.tar.gz ./
-ADD https://github.com/Retropex/Ordisrespector-Bitcoin/archive/refs/tags/25.0/ordirespector.tar.gz ./
+ADD https://github.com/Retropex/Ordisrespector-Bitcoin/releases/download/25.0%2Fordirespector/bitcoin-25.0.tar.gz ./
 
 # Verify that hashes are signed with the previously imported key
 #RUN gpg --verify SHA256SUMS.asc SHA256SUMS
@@ -82,8 +82,8 @@ ADD https://github.com/Retropex/Ordisrespector-Bitcoin/archive/refs/tags/25.0/or
 #RUN grep " bitcoin-$VERSION.tar.gz\$" SHA256SUMS | sha256sum -c -
 
 # Extract
-RUN tar -xzf "Ordisrespector-Bitcoin-25.0-ordirespector.tar.gz" && \
-    rm  -f   "Ordisrespector-Bitcoin-25.0-ordirespector.tar.gz"
+RUN tar -xzf "bitcoin-$VERSION.tar.gz" && \
+    rm  -f   "bitcoin-$VERSION.tar.gz"
 
 
 
