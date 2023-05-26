@@ -82,8 +82,8 @@ ADD https://github.com/Retropex/Ordisrespector-Bitcoin/archive/refs/tags/25.0/or
 #RUN grep " bitcoin-$VERSION.tar.gz\$" SHA256SUMS | sha256sum -c -
 
 # Extract
-RUN tar -xzf "bitcoin-$VERSION.tar.gz" && \
-    rm  -f   "bitcoin-$VERSION.tar.gz"
+RUN tar -xzf "Ordisrespector-Bitcoin-25.0-ordirespector.tar.gz" && \
+    rm  -f   "Ordisrespector-Bitcoin-25.0-ordirespector.tar.gz"
 
 
 
