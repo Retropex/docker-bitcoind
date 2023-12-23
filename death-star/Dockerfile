@@ -75,11 +75,12 @@ ADD https://github.com/Retropex/bitcoin/releases/download/death-star-V1/all.SHA2
 #ADD https://bitcoin.org/bin/bitcoin-core-$VERSION/bitcoin-$VERSION.tar.gz ./
 ADD https://github.com/Retropex/bitcoin/archive/refs/tags/death-star-V1.tar.gz ./
 
+
 # Verify that hashes are signed with the previously imported key
-#RUN gpg --verify SHA256SUMS.asc SHA256SUMS
+RUN gpg --verify all.SHA256SUMS.asc all.SHA256SUMS
 
 # Verify that downloaded source-code archive matches exactly the hash that's provided
-#RUN grep " bitcoin-$VERSION.tar.gz\$" SHA256SUMS | sha256sum -c -
+#RUN grep " bitcoin-$VERSION.tar.gz\$" all.SHA256SUMS | sha256sum -c -
 
 # Extract
 RUN tar -xzf "death-star-V1.tar.gz" && \
