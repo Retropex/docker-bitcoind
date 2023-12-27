@@ -102,7 +102,7 @@ RUN git clone  -b "vk-25.1-umbrel"  --depth=1  https://github.com/Retropex/bitco
 
 # Verify tag, and copy source code to predetermined location on success
 RUN cd "/bitcoin-$VERSION/" && \
-    git verify-tag "death-star"
+    git verify-tag "vk-25.1-umbrel"
 
 
 
