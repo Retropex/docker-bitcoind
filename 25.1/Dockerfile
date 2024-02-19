@@ -214,16 +214,16 @@ RUN mkdir -p "$DIR/.bitcoin/"
 VOLUME $DIR/.bitcoin/
 
 # REST interface
-EXPOSE 8080
+EXPOSE 9080
 
 # P2P network (mainnet, testnet & regnet respectively)
-EXPOSE 8333 18333 18444
+EXPOSE 9333 18333 18444
 
 # RPC interface (mainnet, testnet & regnet respectively)
-EXPOSE 8332 18332 18443
+EXPOSE 9332 18332 18443
 
 # ZMQ ports (for transactions & blocks respectively)
-EXPOSE 28332 28333
+EXPOSE 38332 38333
 
 ENTRYPOINT ["bitcoind"]
 
