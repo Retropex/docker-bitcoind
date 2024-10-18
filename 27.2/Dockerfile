@@ -206,9 +206,7 @@ USER $USER
 # Prevents `VOLUME $DIR/.bitcoind/` being created as owned by `root`
 RUN mkdir -p "$DIR/.bitcoin/"
 
-RUN apk update
-
-RUN apk add curl
+RUN apk add --no-cache curl
 
 # Expose volume containing all `bitcoind` data
 VOLUME $DIR/.bitcoin/
