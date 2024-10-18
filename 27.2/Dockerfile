@@ -191,7 +191,8 @@ RUN apk add --no-cache \
         libsodium \
         libstdc++ \
         libzmq \
-        sqlite-libs
+        sqlite-libs \
+	curl
 
 COPY  --from=builder /opt/bitcoin-$VERSION/bin/bitcoin*  /usr/local/bin/
 
@@ -205,8 +206,6 @@ USER $USER
 
 # Prevents `VOLUME $DIR/.bitcoind/` being created as owned by `root`
 RUN mkdir -p "$DIR/.bitcoin/"
-
-RUN apk add --no-cache curl
 
 # Expose volume containing all `bitcoind` data
 VOLUME $DIR/.bitcoin/
